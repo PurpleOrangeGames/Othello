@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Engine/black.png</file>
+        <file>Engine/board.png</file>
+        <file>Engine/selected.png</file>
+        <file>Engine/white.png</file>
+        <file>Othello.qml</file>
+        <file>Engine/shadow.png</file>
+        <file>Engine/blank.png</file>
+    </qresource>
+    <qresource prefix="/Core">
+        <file alias="Button.qml">Core/Button.qml</file>
+        <file alias="qmldir">Core/qmldir</file>
+        <file alias="List.qml">Core/List.qml</file>
+        <file alias="Options.qml">Core/Options.qml</file>
+        <file alias="ProgressBar.qml">Core/ProgressBar.qml</file>
+    </qresource>
+</RCC>
