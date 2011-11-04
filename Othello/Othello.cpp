@@ -42,6 +42,8 @@ void reversi::restartGame()
  engine.start();
  Lock=false;
  CurrentPlayer=player1White;
+ shouldEndGame=false;
+ shouldChangeTurn=false;
 }
 
 void reversi::startGame(QString PlayerWhite, int depthUpWhite, int depthDownWhite, QString PlayerBlack, int depthUpBlack, int depthDownBlack)
@@ -56,6 +58,7 @@ void reversi::startGame(QString PlayerWhite, int depthUpWhite, int depthDownWhit
  this->depthDownBlack=depthDownBlack;
 
  sendBoard();
+ if (PlayerWhite!="Player") Update();
 }
 
 void reversi::setStatus(QString status)
@@ -71,28 +74,6 @@ void reversi::setStatus(QString status)
   sendFinished();
 }
 
-void reversi::Update()
-{
- CheckTurn();//Passa o turno
- sendBoard();
- Lock=false;
-
- if (CurrentPlayer==player2Black && !engine.t && !Lock)
- {
-  if (PlayerBlack=="Player") return;
-  if (PlayerBlack=="Type 0") AI_Minimax(0);
-  if (PlayerBlack=="Type 1") AI_Minimax(1);
-  if (PlayerBlack=="Rand") AI_Random();
- }
- else if (CurrentPlayer==player1White && !engine.t && !Lock)
- {
-  if (PlayerWhite=="Player") return;
-  if (PlayerWhite=="Type 0") AI_Minimax(0);
-  if (PlayerWhite=="Type 1") AI_Minimax(1);
-  if (PlayerWhite=="Rand") AI_Random();
- }
-}
-
 void reversi::sendBoard()
 {
  sendClear();
@@ -102,7 +83,7 @@ void reversi::sendBoard()
    {
     if (last_Move.x==i && last_Move.y==j)
     {
-     if (CurrentPlayer)
+     if (last_Move.d[0]==0)
       sendBoard(last_Move.x,last_Move.y,selectedWhite);
      else
       sendBoard(last_Move.x,last_Move.y,selectedBlack);
@@ -121,46 +102,77 @@ void reversi::ChangePlayer()
  if (CurrentPlayer==player2Black) CurrentPlayer=player1White; else CurrentPlayer=player2Black;//Troca o jogador
 }
 
+void reversi::Update()
+{
+ CheckTurn();
+ sendBoard();
+
+ if (shouldEndGame)
+ {
+  return;
+ }
+ else if (shouldChangeTurn)
+ {
+  ChangePlayer();
+  Update();
+  return;
+ }
+ else if (CurrentPlayer==player2Black)
+ {
+  if      (PlayerBlack=="Player") return;
+  else if (PlayerBlack=="Type 0") AI_Minimax(0);
+  else if (PlayerBlack=="Type 1") AI_Minimax(1);
+  else if (PlayerBlack=="Rand"  ) AI_Random();
+  return;
+ }
+ else if (CurrentPlayer==player1White)
+ {
+  if      (PlayerWhite=="Player") return;
+  else if (PlayerWhite=="Type 0") AI_Minimax(0);
+  else if (PlayerWhite=="Type 1") AI_Minimax(1);
+  else if (PlayerWhite=="Rand"  ) AI_Random();
+  return;
+ }
+}
+
 void reversi::CheckTurn()//Função que troca o jogador, verifica se deve passar o turno ou se deve terminar o jogo
 {
- ChangePlayer();//Troca o jogador
  engine.checkboardmovement(CurrentPlayer);//Verifica Movimento
-
- if (engine.t==shouldPassTurn)//Sem movimentos, passa o turno
+ if (!shouldChangeTurn && engine.t==shouldPassTurn)//Sem movimentos, passa o turno
  {
-  ChangePlayer();//Troca o jogador
-  engine.checkboardmovement(CurrentPlayer);//Verifica Movimento
-  if (engine.t==shouldPassTurn)//Sem movimentos novamente, termina o jogo
-  {
-   engine.count();
-   qWarning()<<"player1White"<<engine.ps[player1White]<<"-"<<"player2Black"<<engine.ps[player2Black];
-   //if (engine.ps[0]==engine.ps[1]) { gameDraw++; othellotitle.setText("Draw"); whoWon="Draw"; }
-   //else if (engine.ps[0]>engine.ps[1]) { gamePlayer1Win++; othellotitle.setText("Player 1 won"); whoWon="White"; }
-   //else if (engine.ps[0]<engine.ps[1]) { gamePlayer2Win++; othellotitle.setText("Player 2 won"); whoWon="Black"; }
-  }
-  else
-   qWarning()<<"Skip Turn";
+  qWarning()<<"Skip Turn";
+  shouldChangeTurn=true;
+ }
+ else if (shouldChangeTurn && engine.t==shouldPassTurn)//Sem movimentos denovo, termina o jogo
+ {
+  shouldEndGame=true;
+  engine.count();
+  qWarning()<<"player1White"<<engine.ps[player1White]<<"-"<<"player2Black"<<engine.ps[player2Black];
+  if (engine.ps[0]==engine.ps[1]) qWarning()<<"Draw";
+  else if (engine.ps[0]>engine.ps[1]) qWarning()<<"White Won";
+  else if (engine.ps[0]<engine.ps[1]) qWarning()<<"Black Won";
+ }
+ else
+ {
+  shouldChangeTurn=false;
  }
 }
 
 void reversi::Player(int x, int y)//Função responsável por administrar as ações do jogador
 {
- if (Lock) return;
- Lock=true;
  engine.checkboardmovement(CurrentPlayer);//Verifica possíveis movimentos do jogador
  if (engine.b[x][y].m)//Se o movimento pedido existe, mova a peça
  {
   last_Move=position(x,y,engine.b[x][y].d);
+  last_Move.d[0]=CurrentPlayer;
   engine.movepiece(position(x,y,engine.b[x][y].d),CurrentPlayer);//Mova a peça
+  ChangePlayer();
   Update();
-  return;
  }
 }
 
 void reversi::AI_Random()//Função responsável por administrar as ações do oponente randômico.
 {
- if (Lock) return;
- Lock=true;
  engine.checkboardmovement(CurrentPlayer);//Verifica possíveis movimentos do jogador
  engine.countm();//Conta a quantidade de possíveis movimentos
  int rand_temp=(rand()%engine.qtm)+1, qty=0;// Gera numero randomico
@@ -171,7 +183,9 @@ void reversi::AI_Random()//Função responsável por administrar as ações do oponen
    if (rand_temp==qty)//Acha o numero randomico dentro dos possiveis movimentos
    {
     last_Move=position(i,j,engine.b[i][j].d);
+    last_Move.d[0]=CurrentPlayer;
     engine.movepiece(position(i,j,engine.b[i][j].d),CurrentPlayer);//Move a peça
+    ChangePlayer();
     Update();
     return;//Retorna
    }
@@ -180,8 +194,6 @@ void reversi::AI_Random()//Função responsável por administrar as ações do oponen
 
 void reversi::AI_Minimax(int type)//Função responsável por direcionar o jogo a função minimax desejada.
 {
- if (Lock) return;
- Lock=true;
  engine.checkboardmovement(CurrentPlayer);//Verifica possíveis movimentos do jogador
  Minimax_FA *AI=new Minimax_FA;
 
@@ -196,6 +208,8 @@ void reversi::AI_Minimax(int type)//Função responsável por direcionar o jogo a f
 void reversi::getAIResult(position r)
 {
  last_Move=r;
+ last_Move.d[0]=CurrentPlayer;
  engine.movepiece(r,CurrentPlayer);//Move a peça
+ ChangePlayer();
  Update();
 }
